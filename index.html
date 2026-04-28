@@ -6,9 +6,9 @@
 <title>Music Player</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
-
+ 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+ 
   :root {
     --bg: #0e0e0f;
     --surface: #181819;
@@ -21,7 +21,7 @@
     --accent2: #8b6a3e;
     --radius: 12px;
   }
-
+ 
   html, body {
     height: 100%;
     background: var(--bg);
@@ -31,7 +31,7 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
-
+ 
   body {
     display: flex;
     align-items: center;
@@ -39,12 +39,12 @@
     min-height: 100vh;
     padding: 1.5rem;
   }
-
+ 
   #app {
     width: 100%;
     max-width: 460px;
   }
-
+ 
   /* Header */
   .app-header {
     display: flex;
@@ -68,7 +68,7 @@
     text-transform: uppercase;
     color: var(--muted);
   }
-
+ 
   /* Drop zone */
   #drop-zone {
     border: 1px dashed var(--border2);
@@ -101,7 +101,7 @@
     color: var(--muted);
     font-family: 'DM Mono', monospace;
   }
-
+ 
   /* Player card */
   #player-card {
     background: var(--surface);
@@ -111,7 +111,7 @@
     display: none;
     margin-bottom: 1.25rem;
   }
-
+ 
   #track-info {
     text-align: center;
     margin-bottom: 1.4rem;
@@ -131,7 +131,7 @@
     color: var(--muted);
     letter-spacing: 0.05em;
   }
-
+ 
   /* Progress */
   #progress-wrap { margin-bottom: 1.25rem; }
   #progress {
@@ -168,7 +168,7 @@
     font-family: 'DM Mono', monospace;
     color: var(--muted);
   }
-
+ 
   /* Controls */
   #controls {
     display: flex;
@@ -191,7 +191,7 @@
   .ctrl-btn:hover { color: var(--text); background: var(--surface2); border-color: var(--border2); }
   .ctrl-btn:active { transform: scale(0.93); }
   .ctrl-btn.active { color: var(--accent); border-color: var(--accent2); background: rgba(212,169,106,0.07); }
-
+ 
   #play-btn {
     width: 52px; height: 52px;
     border-radius: 50%;
@@ -201,7 +201,7 @@
     border-color: var(--accent);
   }
   #play-btn:hover { background: #e0b87a; border-color: #e0b87a; color: var(--bg); }
-
+ 
   /* Volume */
   #volume-row {
     display: flex;
@@ -251,7 +251,7 @@
     min-width: 28px;
     text-align: right;
   }
-
+ 
   /* Queue */
   #queue-section {
     background: var(--surface);
@@ -288,7 +288,7 @@
   #queue-list::-webkit-scrollbar { width: 3px; }
   #queue-list::-webkit-scrollbar-track { background: transparent; }
   #queue-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
-
+ 
   .q-item {
     display: flex;
     align-items: center;
@@ -323,7 +323,7 @@
     font-family: 'DM Mono', monospace;
     color: var(--muted);
   }
-
+ 
   /* Keyboard hint */
   #kb-hint {
     text-align: center;
@@ -337,20 +337,20 @@
 </style>
 </head>
 <body>
-
+ 
 <div id="app">
   <div class="app-header">
     <div class="logo">♪</div>
     <h1>Player</h1>
   </div>
-
+ 
   <div id="drop-zone" onclick="document.getElementById('file-input').click()">
     <div class="dz-icon">🎵</div>
     <div class="dz-title">Drop music files here</div>
     <div class="dz-sub">or click to browse · mp3 flac wav ogg m4a</div>
     <input type="file" id="file-input" multiple accept="audio/*">
   </div>
-
+ 
   <div id="player-card">
     <div id="track-info">
       <div id="track-title">—</div>
@@ -376,7 +376,7 @@
       <span id="vol-val">100%</span>
     </div>
   </div>
-
+ 
   <div id="queue-section">
     <div id="queue-header">
       <span>Queue</span>
@@ -384,7 +384,7 @@
     </div>
     <div id="queue-list"></div>
   </div>
-
+ 
   <div id="kb-hint">
     <span>space play/pause</span>·
     <span>← → skip</span>·
@@ -394,19 +394,19 @@
     <span>r repeat</span>
   </div>
 </div>
-
+ 
 <script>
 const audio = new Audio();
 let tracks = [], order = [], currentIdx = 0;
 let shuffle = false, repeat = 'none', muted = false, prevVol = 1;
 const $ = id => document.getElementById(id);
-
+ 
 function fmt(s) {
   if (isNaN(s) || s < 0) return '0:00';
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
   return m + ':' + String(sec).padStart(2, '0');
 }
-
+ 
 function buildOrder() {
   order = tracks.map((_, i) => i);
   if (shuffle) {
@@ -416,7 +416,7 @@ function buildOrder() {
     }
   }
 }
-
+ 
 function loadTrack(idx) {
   currentIdx = idx;
   const t = tracks[order[idx]];
@@ -426,8 +426,40 @@ function loadTrack(idx) {
   audio.play();
   $('play-btn').textContent = '⏸';
   renderQueue();
+  updateMediaSession(t);
 }
-
+ 
+function updateMediaSession(t) {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: t.name,
+    artist: t.ext.toUpperCase(),
+    album: 'Music Player',
+    artwork: [{ src: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="80" fill="#181819"/><text x="256" y="320" font-size="260" text-anchor="middle" fill="#d4a96a">♪</text></svg>'), sizes: '512x512', type: 'image/svg+xml' }]
+  });
+  navigator.mediaSession.setActionHandler('play', () => { audio.play(); });
+  navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); });
+  navigator.mediaSession.setActionHandler('previoustrack', () => {
+    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    loadTrack(currentIdx > 0 ? currentIdx - 1 : order.length - 1);
+  });
+  navigator.mediaSession.setActionHandler('nexttrack', () => playNext(true));
+  navigator.mediaSession.setActionHandler('seekto', e => {
+    if (e.seekTime !== undefined) audio.currentTime = e.seekTime;
+  });
+}
+ 
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration || !('mediaSession' in navigator)) return;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate,
+      position: audio.currentTime
+    });
+  } catch(e) {}
+});
+ 
 function renderQueue() {
   const list = $('queue-list');
   list.innerHTML = '';
@@ -446,11 +478,11 @@ function renderQueue() {
   const active = list.querySelector('.playing');
   if (active) active.scrollIntoView({ block: 'nearest' });
 }
-
+ 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
+ 
 function addFiles(files) {
   const arr = Array.from(files).filter(f => f.type.startsWith('audio/') || /\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(f.name));
   if (!arr.length) return;
@@ -470,39 +502,39 @@ function addFiles(files) {
   renderQueue();
   if (wasEmpty) loadTrack(0);
 }
-
+ 
 $('file-input').addEventListener('change', e => addFiles(e.target.files));
-
+ 
 const dz = $('drop-zone');
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
-
+ 
 $('play-btn').addEventListener('click', () => {
   if (!tracks.length) return;
   if (audio.paused) { audio.play(); $('play-btn').textContent = '⏸'; }
   else { audio.pause(); $('play-btn').textContent = '▶'; }
 });
-
+ 
 $('prev-btn').addEventListener('click', () => {
   if (!tracks.length) return;
   if (audio.currentTime > 3) { audio.currentTime = 0; return; }
   loadTrack(currentIdx > 0 ? currentIdx - 1 : order.length - 1);
 });
-
+ 
 $('next-btn').addEventListener('click', () => { if (tracks.length) playNext(true); });
-
+ 
 function playNext(manual) {
   if (repeat === 'one' && !manual) { audio.currentTime = 0; audio.play(); return; }
   const next = currentIdx < order.length - 1 ? currentIdx + 1 : (repeat === 'all' ? 0 : -1);
   if (next === -1) { audio.pause(); $('play-btn').textContent = '▶'; return; }
   loadTrack(next);
 }
-
+ 
 audio.addEventListener('ended', () => playNext(false));
 audio.addEventListener('play', () => $('play-btn').textContent = '⏸');
 audio.addEventListener('pause', () => $('play-btn').textContent = '▶');
-
+ 
 $('shuffle-btn').addEventListener('click', () => {
   shuffle = !shuffle;
   $('shuffle-btn').classList.toggle('active', shuffle);
@@ -511,7 +543,7 @@ $('shuffle-btn').addEventListener('click', () => {
   currentIdx = order.indexOf(cur);
   renderQueue();
 });
-
+ 
 const repeatStates = ['none', 'all', 'one'];
 const repeatIcons = ['↺', '↺', '1'];
 $('repeat-btn').addEventListener('click', () => {
@@ -521,27 +553,36 @@ $('repeat-btn').addEventListener('click', () => {
   $('repeat-btn').style.fontSize = repeat === 'one' ? '12px' : '';
   $('repeat-btn').classList.toggle('active', repeat !== 'none');
 });
-
+ 
 $('progress').addEventListener('input', e => {
   if (audio.duration) audio.currentTime = (e.target.value / 100) * audio.duration;
 });
-
+ 
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   $('progress').value = (audio.currentTime / audio.duration) * 100;
   $('cur-time').textContent = fmt(audio.currentTime);
   $('dur-time').textContent = fmt(audio.duration);
+  if ('mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration,
+        playbackRate: audio.playbackRate,
+        position: audio.currentTime
+      });
+    } catch(e) {}
+  }
 });
-
+ 
 audio.addEventListener('loadedmetadata', () => { $('dur-time').textContent = fmt(audio.duration); });
-
+ 
 $('volume').addEventListener('input', e => {
   audio.volume = parseFloat(e.target.value);
   muted = audio.volume === 0;
   $('vol-val').textContent = Math.round(audio.volume * 100) + '%';
   $('vol-icon').textContent = audio.volume === 0 ? '🔇' : audio.volume < 0.4 ? '🔉' : '🔊';
 });
-
+ 
 $('vol-icon').addEventListener('click', () => {
   if (!muted) {
     prevVol = audio.volume;
@@ -553,7 +594,7 @@ $('vol-icon').addEventListener('click', () => {
     $('vol-icon').textContent = '🔊'; muted = false;
   }
 });
-
+ 
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   switch(e.code) {
@@ -570,3 +611,4 @@ document.addEventListener('keydown', e => {
 </script>
 </body>
 </html>
+ 
