@@ -350,6 +350,31 @@
     color: var(--muted);
   }
  
+  /* Cover art */
+  #cover-wrap {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+    background: var(--surface2);
+    display: none;
+    position: relative;
+  }
+  #cover-img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.3s;
+  }
+  #cover-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 48px;
+    opacity: 0.25;
+    position: absolute; top: 0; left: 0;
+  }
+ 
   /* Keyboard hint */
   #kb-hint {
     text-align: center;
@@ -373,11 +398,15 @@
   <div id="drop-zone" onclick="document.getElementById('file-input').click()">
     <div class="dz-icon">🎵</div>
     <div class="dz-title">Drop music files here</div>
-    <div class="dz-sub">or click to browse · mp3 flac wav ogg m4a</div>
-    <input type="file" id="file-input" multiple accept="audio/*">
+    <div class="dz-sub">or click to browse · mp3 flac wav ogg m4a · jpg png for cover art</div>
+    <input type="file" id="file-input" multiple accept="audio/*,image/*">
   </div>
  
   <div id="player-card">
+    <div id="cover-wrap">
+      <div id="cover-placeholder">♪</div>
+      <img id="cover-img" src="" alt="Album art" style="opacity:0;">
+    </div>
     <div id="track-info">
       <div id="track-title">—</div>
       <div id="track-meta">No track loaded</div>
@@ -457,11 +486,14 @@ function loadTrack(idx) {
  
 function updateMediaSession(t) {
   if (!('mediaSession' in navigator)) return;
+  const fallbackArt = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="80" fill="#181819"/><text x="256" y="320" font-size="260" text-anchor="middle" fill="#d4a96a">♪</text></svg>');
+  const artSrc = coverArtDataUrl || fallbackArt;
+  const artType = coverArtDataUrl ? (coverArtDataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg') : 'image/svg+xml';
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.name,
     artist: t.ext.toUpperCase(),
     album: 'Music Player',
-    artwork: [{ src: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="80" fill="#181819"/><text x="256" y="320" font-size="260" text-anchor="middle" fill="#d4a96a">♪</text></svg>'), sizes: '512x512', type: 'image/svg+xml' }]
+    artwork: [{ src: artSrc, sizes: '512x512', type: artType }]
   });
   navigator.mediaSession.setActionHandler('play', () => { audio.play(); });
   navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); });
@@ -509,11 +541,32 @@ function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
  
+let coverArtUrl = null;
+let coverArtDataUrl = null;
+ 
 function addFiles(files) {
-  const arr = Array.from(files).filter(f => f.type.startsWith('audio/') || /\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(f.name));
-  if (!arr.length) return;
+  const allFiles = Array.from(files);
+  const audioFiles = allFiles.filter(f => f.type.startsWith('audio/') || /\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(f.name));
+  const imageFile = allFiles.find(f => f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name));
+ 
+  if (imageFile) {
+    if (coverArtUrl) URL.revokeObjectURL(coverArtUrl);
+    coverArtUrl = URL.createObjectURL(imageFile);
+    const reader = new FileReader();
+    reader.onload = e => {
+      coverArtDataUrl = e.target.result;
+      const img = $('cover-img');
+      img.onload = () => { img.style.opacity = '1'; };
+      img.src = coverArtDataUrl;
+      $('cover-wrap').style.display = 'block';
+      if (tracks.length > 0) updateMediaSession(tracks[order[currentIdx]]);
+    };
+    reader.readAsDataURL(imageFile);
+  }
+ 
+  if (!audioFiles.length) return;
   const wasEmpty = tracks.length === 0;
-  arr.forEach(f => {
+  audioFiles.forEach(f => {
     const url = URL.createObjectURL(f);
     const name = f.name.replace(/\.[^.]+$/, '');
     const ext = f.name.split('.').pop().toLowerCase();
