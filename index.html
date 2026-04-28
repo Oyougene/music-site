@@ -10,16 +10,41 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
  
   :root {
-    --bg: #0e0e0f;
-    --surface: #181819;
-    --surface2: #222224;
-    --border: rgba(255,255,255,0.07);
-    --border2: rgba(255,255,255,0.13);
-    --text: #f0ede8;
-    --muted: #7a7875;
-    --accent: #d4a96a;
-    --accent2: #8b6a3e;
     --radius: 12px;
+    --accent: #c49a52;
+    --accent2: #8b6a3e;
+  }
+ 
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0e0f;
+      --surface: #181819;
+      --surface2: #222224;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --text: #f0ede8;
+      --muted: #7a7875;
+      --accent: #d4a96a;
+      --accent2: #8b6a3e;
+      --play-btn-text: #0e0e0f;
+      --kb-hint: #3a3a3c;
+    }
+  }
+ 
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f2f0eb;
+      --surface: #ffffff;
+      --surface2: #ece9e3;
+      --border: rgba(0,0,0,0.08);
+      --border2: rgba(0,0,0,0.15);
+      --text: #1a1917;
+      --muted: #8a8680;
+      --accent: #b8832e;
+      --accent2: #c49a52;
+      --play-btn-text: #ffffff;
+      --kb-hint: #c0bdb8;
+    }
   }
  
   html, body {
@@ -30,6 +55,7 @@
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    transition: background 0.3s, color 0.3s;
   }
  
   body {
@@ -196,11 +222,11 @@
     width: 52px; height: 52px;
     border-radius: 50%;
     font-size: 18px;
-    color: var(--bg);
+    color: var(--play-btn-text);
     background: var(--accent);
     border-color: var(--accent);
   }
-  #play-btn:hover { background: #e0b87a; border-color: #e0b87a; color: var(--bg); }
+  #play-btn:hover { background: var(--accent2); border-color: var(--accent2); color: var(--play-btn-text); }
  
   /* Volume */
   #volume-row {
@@ -330,7 +356,7 @@
     margin-top: 1rem;
     font-size: 11px;
     font-family: 'DM Mono', monospace;
-    color: #3a3a3c;
+    color: var(--kb-hint);
     letter-spacing: 0.04em;
   }
   #kb-hint span { margin: 0 4px; }
@@ -611,4 +637,3 @@ document.addEventListener('keydown', e => {
 </script>
 </body>
 </html>
- 
