@@ -507,14 +507,18 @@ function loadTrack(idx) {
  
 function updateMediaSession(t) {
   if (!('mediaSession' in navigator)) return;
-  const fallbackArt = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="80" fill="#181819"/><text x="256" y="320" font-size="260" text-anchor="middle" fill="#d4a96a">♪</text></svg>');
-  const artSrc = t.artDataUrl || coverArtDataUrl || fallbackArt;
-  const artType = artSrc.startsWith('data:image/png') ? 'image/png' : artSrc.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/jpeg';
+  // macOS Now Playing requires a blob: or https: URL for artwork — data: URIs are silently ignored
+  const artBlobSrc = t.artBlobUrl || coverArtBlobUrl || null;
+  const artDataSrc = t.artDataUrl || coverArtDataUrl || null;
+  const artSrc = artBlobSrc || artDataSrc || null;
+  const artwork = artSrc
+    ? [{ src: artSrc, sizes: '512x512', type: artSrc.startsWith('blob:') ? 'image/jpeg' : (artSrc.startsWith('data:image/png') ? 'image/png' : 'image/jpeg') }]
+    : [];
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title || t.name,
     artist: t.artist || '',
     album: t.album || '',
-    artwork: [{ src: artSrc, sizes: '512x512', type: artType }]
+    artwork
   });
   navigator.mediaSession.setActionHandler('play', () => { audio.play(); });
   navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); });
@@ -566,6 +570,7 @@ function escHtml(s) {
  
 let coverArtUrl = null;
 let coverArtDataUrl = null;
+let coverArtBlobUrl = null;
  
 function readTags(file) {
   return new Promise(resolve => {
@@ -582,9 +587,13 @@ function readTags(file) {
         const pic = tags.picture;
         if (pic) {
           const bytes = new Uint8Array(pic.data);
+          // Keep data URL for <img> display
           let binary = '';
           bytes.forEach(b => binary += String.fromCharCode(b));
           result.artDataUrl = 'data:' + pic.format + ';base64,' + btoa(binary);
+          // Also make a Blob URL — macOS Media Session requires this, rejects data: URIs
+          const blob = new Blob([bytes], { type: pic.format });
+          result.artBlobUrl = URL.createObjectURL(blob);
         }
         resolve(result);
       },
@@ -601,6 +610,7 @@ function addFiles(files) {
   if (imageFile) {
     if (coverArtUrl) URL.revokeObjectURL(coverArtUrl);
     coverArtUrl = URL.createObjectURL(imageFile);
+    coverArtBlobUrl = coverArtUrl; // createObjectURL already gives us a blob: URL
     const reader = new FileReader();
     reader.onload = e => {
       coverArtDataUrl = e.target.result;
@@ -642,6 +652,7 @@ function addFiles(files) {
       if (meta.album) t.album = meta.album;
       if (meta.artDataUrl) {
         t.artDataUrl = meta.artDataUrl;
+        t.artBlobUrl = meta.artBlobUrl || null;
         // If no folder-level cover art was dropped, use embedded art from current track
         if (!coverArtDataUrl && order[currentIdx] === startIdx + i) {
           const img = $('cover-img');
