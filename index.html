@@ -149,13 +149,25 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
-  #track-meta {
+  #track-artist {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  #track-album {
     font-size: 11px;
     font-family: 'DM Mono', monospace;
     color: var(--muted);
-    letter-spacing: 0.05em;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.03em;
   }
  
   /* Progress */
@@ -343,7 +355,13 @@
     white-space: nowrap;
     flex: 1;
   }
+  .q-artist {
+    font-size: 12px;
+    color: var(--muted);
+    opacity: 0.65;
+  }
   .q-item.playing .q-name { color: var(--text); font-weight: 500; }
+  .q-item.playing .q-artist { opacity: 0.8; }
   .q-dur {
     font-size: 11px;
     font-family: 'DM Mono', monospace;
@@ -386,6 +404,7 @@
   }
   #kb-hint span { margin: 0 4px; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 </head>
 <body>
  
@@ -409,7 +428,8 @@
     </div>
     <div id="track-info">
       <div id="track-title">—</div>
-      <div id="track-meta">No track loaded</div>
+      <div id="track-artist">No track loaded</div>
+      <div id="track-album"></div>
     </div>
     <div id="progress-wrap">
       <input type="range" id="progress" min="0" max="100" value="0" step="0.1">
@@ -476,8 +496,9 @@ function loadTrack(idx) {
   currentIdx = idx;
   const t = tracks[order[idx]];
   audio.src = t.url;
-  $('track-title').textContent = t.name;
-  $('track-meta').textContent = t.ext.toUpperCase() + ' · ' + (t.size < 1e6 ? (t.size/1e3).toFixed(0) + ' KB' : (t.size/1e6).toFixed(1) + ' MB');
+  $('track-title').textContent = t.title || t.name;
+  $('track-artist').textContent = t.artist || t.ext.toUpperCase();
+  $('track-album').textContent = t.album || '';
   audio.play();
   $('play-btn').textContent = '⏸';
   renderQueue();
@@ -487,12 +508,12 @@ function loadTrack(idx) {
 function updateMediaSession(t) {
   if (!('mediaSession' in navigator)) return;
   const fallbackArt = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="80" fill="#181819"/><text x="256" y="320" font-size="260" text-anchor="middle" fill="#d4a96a">♪</text></svg>');
-  const artSrc = coverArtDataUrl || fallbackArt;
-  const artType = coverArtDataUrl ? (coverArtDataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg') : 'image/svg+xml';
+  const artSrc = t.artDataUrl || coverArtDataUrl || fallbackArt;
+  const artType = artSrc.startsWith('data:image/png') ? 'image/png' : artSrc.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/jpeg';
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: t.name,
-    artist: t.ext.toUpperCase(),
-    album: 'Music Player',
+    title: t.title || t.name,
+    artist: t.artist || '',
+    album: t.album || '',
     artwork: [{ src: artSrc, sizes: '512x512', type: artType }]
   });
   navigator.mediaSession.setActionHandler('play', () => { audio.play(); });
@@ -526,9 +547,11 @@ function renderQueue() {
     const t = tracks[ti];
     const div = document.createElement('div');
     div.className = 'q-item' + (qi === currentIdx ? ' playing' : '');
+    const displayName = t.title || t.name;
+    const displaySub = t.artist ? ' — ' + escHtml(t.artist) : '';
     div.innerHTML =
       '<span class="q-num">' + (qi === currentIdx ? '▶' : qi + 1) + '</span>' +
-      '<span class="q-name">' + escHtml(t.name) + '</span>' +
+      '<span class="q-name">' + escHtml(displayName) + '<span class="q-artist">' + displaySub + '</span></span>' +
       '<span class="q-dur">' + fmt(t.duration || 0) + '</span>';
     div.onclick = () => loadTrack(qi);
     list.appendChild(div);
@@ -543,6 +566,32 @@ function escHtml(s) {
  
 let coverArtUrl = null;
 let coverArtDataUrl = null;
+ 
+function readTags(file) {
+  return new Promise(resolve => {
+    if (typeof jsmediatags === 'undefined') { resolve({}); return; }
+    jsmediatags.read(file, {
+      onSuccess: tag => {
+        const tags = tag.tags;
+        const result = {
+          title: tags.title || '',
+          artist: tags.artist || tags.TPE1 || '',
+          album: tags.album || '',
+          track: tags.track || ''
+        };
+        const pic = tags.picture;
+        if (pic) {
+          const bytes = new Uint8Array(pic.data);
+          let binary = '';
+          bytes.forEach(b => binary += String.fromCharCode(b));
+          result.artDataUrl = 'data:' + pic.format + ';base64,' + btoa(binary);
+        }
+        resolve(result);
+      },
+      onError: () => resolve({})
+    });
+  });
+}
  
 function addFiles(files) {
   const allFiles = Array.from(files);
@@ -566,20 +615,58 @@ function addFiles(files) {
  
   if (!audioFiles.length) return;
   const wasEmpty = tracks.length === 0;
+  const startIdx = tracks.length;
+ 
   audioFiles.forEach(f => {
     const url = URL.createObjectURL(f);
     const name = f.name.replace(/\.[^.]+$/, '');
     const ext = f.name.split('.').pop().toLowerCase();
-    const t = { url, name, ext, size: f.size, duration: 0 };
+    const t = { url, name, ext, size: f.size, duration: 0, title: '', artist: '', album: '', artDataUrl: null };
     const a = new Audio(url);
     a.addEventListener('loadedmetadata', () => { t.duration = a.duration; renderQueue(); }, { once: true });
     tracks.push(t);
   });
+ 
   buildOrder();
   $('player-card').style.display = 'block';
   $('queue-section').style.display = 'block';
   renderQueue();
   if (wasEmpty) loadTrack(0);
+ 
+  // Read tags async — update track objects and refresh display as they come in
+  audioFiles.forEach((f, i) => {
+    const t = tracks[startIdx + i];
+    readTags(f).then(meta => {
+      if (meta.title) t.title = meta.title;
+      if (meta.artist) t.artist = meta.artist;
+      if (meta.album) t.album = meta.album;
+      if (meta.artDataUrl) {
+        t.artDataUrl = meta.artDataUrl;
+        // If no folder-level cover art was dropped, use embedded art from current track
+        if (!coverArtDataUrl && order[currentIdx] === startIdx + i) {
+          const img = $('cover-img');
+          img.onload = () => { img.style.opacity = '1'; };
+          img.src = meta.artDataUrl;
+          $('cover-wrap').style.display = 'block';
+        }
+      }
+      renderQueue();
+      // Refresh player display if this is the currently playing track
+      if (order[currentIdx] === startIdx + i) {
+        $('track-title').textContent = t.title || t.name;
+        $('track-artist').textContent = t.artist || t.ext.toUpperCase();
+        $('track-album').textContent = t.album || '';
+        updateMediaSession(t);
+        // Show embedded art if no external cover was loaded and this track has art
+        if (!coverArtDataUrl && t.artDataUrl) {
+          const img = $('cover-img');
+          img.onload = () => { img.style.opacity = '1'; };
+          img.src = t.artDataUrl;
+          $('cover-wrap').style.display = 'block';
+        }
+      }
+    });
+  });
 }
  
 $('file-input').addEventListener('change', e => addFiles(e.target.files));
